@@ -2,170 +2,355 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tibetan Heritage Match</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Online Ludo 2-Player</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
     body {
       margin: 0;
-      padding: 20px;
-      background-color: #2b0b0e;
-      color: #f5e6c8;
+      padding: 10px;
+      background-color: #1a1a1a;
+      color: #fff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       text-align: center;
       user-select: none;
     }
-    h1 {
-      color: #e5a93b;
-      margin-bottom: 5px;
+    h2 { margin: 5px 0; color: #f1c40f; }
+    .lobby-panel {
+      background: #2c3e50;
+      padding: 15px;
+      border-radius: 8px;
+      max-width: 360px;
+      margin: 10px auto;
     }
-    p {
-      margin-top: 0;
+    input {
+      padding: 8px;
       font-size: 16px;
-      color: #d1b89d;
+      border-radius: 4px;
+      border: none;
+      width: 120px;
+      text-align: center;
+      text-transform: uppercase;
     }
-    #stats {
-      margin-bottom: 15px;
+    button {
+      padding: 8px 14px;
+      font-size: 15px;
       font-weight: bold;
-      color: #e5a93b;
+      background: #e67e22;
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      cursor: pointer;
+      margin: 5px;
     }
-    #game-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-      max-width: 380px;
+    #game-container {
+      display: none;
+      max-width: 400px;
       margin: 0 auto;
     }
-    .card {
-      aspect-ratio: 1;
-      background-color: #5c181a;
-      border: 2px solid #e5a93b;
+    #status-bar {
+      margin: 10px 0;
+      font-weight: bold;
+      font-size: 17px;
+      min-height: 24px;
+    }
+    #board-canvas {
+      background: #ecf0f1;
+      border: 4px solid #34495e;
       border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      touch-action: manipulation;
+    }
+    .control-box {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 15px;
+    }
+    #dice-btn {
+      font-size: 28px;
+      width: 60px;
+      height: 60px;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #2c3e50;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
-      font-weight: 600;
-      padding: 4px;
-      cursor: pointer;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-      color: #2b0b0e;
+      border: 3px solid #bdc3c7;
+      box-shadow: 0 4px #7f8c8d;
     }
-    .card.flipped {
-      background-color: #f5e6c8;
-    }
-    .card.matched {
-      background-color: #2e5939;
-      border-color: #68b87a;
-      color: #ffffff;
-      cursor: default;
-    }
-    #reset-btn {
-      margin-top: 20px;
-      padding: 10px 20px;
-      background-color: #e5a93b;
-      border: none;
-      border-radius: 5px;
-      color: #2b0b0e;
-      font-weight: bold;
-      font-size: 16px;
-      cursor: pointer;
+    #dice-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px #7f8c8d;
     }
   </style>
 </head>
 <body>
 
-  <h1>བཀྲ་ཤིས་བདེ་ལེགས།</h1>
-  <p>མཐུན་སྒྲིལ་རྩེད་མོ།</p>
-  <div id="stats">ཐེངས་གྲངས།: <span id="move-count">0</span></div>
+  <h2>Ludo Real-Time (2P)</h2>
 
-  <div id="game-grid"></div>
+  <div id="lobby" class="lobby-panel">
+    <p>Play with a friend on another device:</p>
+    <button onclick="createRoom()">Create New Room</button>
+    <div style="margin: 10px 0;">— OR —</div>
+    <input type="text" id="join-room-input" placeholder="ROOM CODE" maxlength="4">
+    <button onclick="joinRoom()">Join Room</button>
+  </div>
 
-  <button id="reset-btn" onclick="startGame()">བསྐྱར་དུ་རྩེད།</button>
+  <div id="game-container">
+    <div id="room-display" style="font-size: 13px; color: #bdc3c7;"></div>
+    <div id="status-bar">Waiting for opponent...</div>
+    <canvas id="board-canvas" width="360" height="360"></canvas>
+    <div class="control-box">
+      <div id="dice-btn" onclick="rollDice()">🎲</div>
+      <div id="turn-info" style="font-size: 15px;"></div>
+    </div>
+  </div>
 
   <script>
-    // 8 Tibetan words only
-    const words = [
-      'གཡག',
-      'བོད་ཇ',
-      'ཕྲེང་བ',
-      'ལོ་གསར',
-      'ཕྱུ་པ',
-      'སྒྲ་སྙན',
-      'ཁ་བཏགས',
-      'རྩམ་པ'
+    const firebaseConfig = {
+      apiKey: "AIzaSyC4iH1zm6SH-TE2xG9dGOQL-TUVtLyJs3w",
+      authDomain: "online-ludo-381fe.firebaseapp.com",
+      databaseURL: "https://online-ludo-381fe-default-rtdb.firebaseio.com",
+      projectId: "online-ludo-381fe",
+      storageBucket: "online-ludo-381fe.firebasestorage.app",
+      messagingSenderId: "28355980528",
+      appId: "1:28355980528:web:5726894bf74aac2b73e635"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let roomId = null;
+    let playerColor = null;
+    let currentGameState = null;
+    const canvas = document.getElementById('board-canvas');
+    const ctx = canvas.getContext('2d');
+    const tileSize = 360 / 15;
+
+    const redRoute = [
+      [1,6],[2,6],[3,6],[4,6],[5,6],[6,5],[6,4],[6,3],[6,2],[6,1],[6,0],[7,0],[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],
+      [9,6],[10,6],[11,6],[12,6],[13,6],[14,6],[14,7],[14,8],[13,8],[12,8],[11,8],[10,8],[9,8],[8,9],[8,10],[8,11],
+      [8,12],[8,13],[8,14],[7,14],[6,14],[6,13],[6,12],[6,11],[6,10],[6,9],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8],[0,7],
+      [1,7],[2,7],[3,7],[4,7],[5,7],[6,7],[7,7]
     ];
 
-    let deck = [...words, ...words];
-    let flippedCards = [];
-    let matchedPairs = 0;
-    let moves = 0;
-    let canClick = true;
+    const greenRoute = [
+      [13,8],[12,8],[11,8],[10,8],[9,8],[8,9],[8,10],[8,11],[8,12],[8,13],[8,14],[7,14],[6,14],[6,13],[6,12],[6,11],
+      [6,10],[6,9],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8],[0,7],[0,6],[1,6],[2,6],[3,6],[4,6],[5,6],[6,5],[6,4],[6,3],
+      [6,2],[6,1],[6,0],[7,0],[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[9,6],[10,6],[11,6],[12,6],[13,6],[14,6],[14,7],
+      [13,7],[12,7],[11,7],[10,7],[9,7],[8,7],[7,7]
+    ];
 
-    function shuffle(array) {
-      return array.sort(() => Math.random() - 0.5);
-    }
+    function createRoom() {
+      roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+      playerColor = 'red';
+      const initialRoomData = {
+        turn: 'red',
+        dice: 1,
+        hasRolled: false,
+        players: { red: true, green: false },
+        tokens: {
+          red: [-1, -1],
+          green: [-1, -1]
+        },
+        winner: null
+      };
 
-    function startGame() {
-      const grid = document.getElementById('game-grid');
-      grid.innerHTML = '';
-      deck = shuffle([...words, ...words]);
-      flippedCards = [];
-      matchedPairs = 0;
-      moves = 0;
-      canClick = true;
-      document.getElementById('move-count').innerText = moves;
-
-      deck.forEach((term) => {
-        const card = document.createElement('div');
-        card.classList.add('card');
-        card.dataset.term = term;
-        card.innerHTML = '';
-        card.addEventListener('click', handleCardClick);
-        grid.appendChild(card);
+      db.ref('rooms/' + roomId).set(initialRoomData).then(() => {
+        enterGameRoom();
       });
     }
 
-    function handleCardClick(e) {
-      const card = e.currentTarget;
-      if (!canClick || card.classList.contains('flipped') || card.classList.contains('matched')) {
+    function joinRoom() {
+      const code = document.getElementById('join-room-input').value.trim().toUpperCase();
+      if (code.length !== 4) return alert('Enter a 4-digit code');
+      roomId = code;
+      playerColor = 'green';
+
+      db.ref('rooms/' + roomId).once('value', (snapshot) => {
+        if (!snapshot.exists()) {
+          alert('Room does not exist!');
+          return;
+        }
+        db.ref('rooms/' + roomId + '/players/green').set(true).then(() => {
+          enterGameRoom();
+        });
+      });
+    }
+
+    function enterGameRoom() {
+      document.getElementById('lobby').style.display = 'none';
+      document.getElementById('game-container').style.display = 'block';
+      document.getElementById('room-display').innerText = `Room Code: ${roomId} | You: ${playerColor.toUpperCase()}`;
+
+      db.ref('rooms/' + roomId).on('value', (snapshot) => {
+        currentGameState = snapshot.val();
+        if (currentGameState) {
+          renderBoard();
+          updateControls();
+        }
+      });
+    }
+
+    function rollDice() {
+      if (!currentGameState || currentGameState.winner) return;
+      if (currentGameState.turn !== playerColor) return alert("Not your turn!");
+      if (currentGameState.hasRolled) return;
+
+      const roll = Math.floor(Math.random() * 6) + 1;
+      const updates = {
+        dice: roll,
+        hasRolled: true
+      };
+
+      const myTokens = currentGameState.tokens[playerColor];
+      const canMoveAny = myTokens.some(pos => (pos === -1 && roll === 6) || (pos >= 0 && pos + roll < 58));
+
+      if (!canMoveAny) {
+        setTimeout(() => {
+          db.ref('rooms/' + roomId).update({
+            turn: playerColor === 'red' ? 'green' : 'red',
+            hasRolled: false,
+            dice: roll
+          });
+        }, 1000);
+      } else {
+        db.ref('rooms/' + roomId).update(updates);
+      }
+    }
+
+    canvas.addEventListener('click', (e) => {
+      if (!currentGameState || currentGameState.turn !== playerColor || !currentGameState.hasRolled) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / tileSize);
+      const y = Math.floor((e.clientY - rect.top) / tileSize);
+
+      const myTokens = currentGameState.tokens[playerColor];
+      const roll = currentGameState.dice;
+
+      myTokens.forEach((pos, index) => {
+        let tokenCoord = getTokenCoord(playerColor, pos, index);
+        if (tokenCoord && tokenCoord[0] === x && tokenCoord[1] === y) {
+          moveToken(index, pos, roll);
+        }
+      });
+    });
+
+    function moveToken(tokenIndex, currentPos, roll) {
+      let nextPos = currentPos;
+      if (currentPos === -1 && roll === 6) {
+        nextPos = 0;
+      } else if (currentPos >= 0 && currentPos + roll < 58) {
+        nextPos += roll;
+      } else {
         return;
       }
 
-      card.classList.add('flipped');
-      card.innerHTML = card.dataset.term;
-      flippedCards.push(card);
+      const otherColor = playerColor === 'red' ? 'green' : 'red';
+      const enemyTokens = [...currentGameState.tokens[otherColor]];
 
-      if (flippedCards.length === 2) {
-        moves++;
-        document.getElementById('move-count').innerText = moves;
-        checkMatch();
+      if (nextPos < 51) {
+        const myTile = (playerColor === 'red') ? redRoute[nextPos] : greenRoute[nextPos];
+        enemyTokens.forEach((ePos, eIdx) => {
+          if (ePos >= 0 && ePos < 51) {
+            const enemyTile = (otherColor === 'red') ? redRoute[ePos] : greenRoute[ePos];
+            if (myTile[0] === enemyTile[0] && myTile[1] === enemyTile[1]) {
+              enemyTokens[eIdx] = -1;
+            }
+          }
+        });
       }
+
+      const newMyTokens = [...currentGameState.tokens[playerColor]];
+      newMyTokens[tokenIndex] = nextPos;
+
+      let won = newMyTokens.every(p => p === 57);
+
+      db.ref('rooms/' + roomId).update({
+        [`tokens/${playerColor}`]: newMyTokens,
+        [`tokens/${otherColor}`]: enemyTokens,
+        turn: (roll === 6) ? playerColor : otherColor,
+        hasRolled: false,
+        winner: won ? playerColor : null
+      });
     }
 
-    function checkMatch() {
-      const [card1, card2] = flippedCards;
-      if (card1.dataset.term === card2.dataset.term) {
-        card1.classList.add('matched');
-        card2.classList.add('matched');
-        flippedCards = [];
-        matchedPairs++;
-        if (matchedPairs === words.length) {
-          setTimeout(() => alert('བཀྲ་ཤིས་བདེ་ལེགས། ཁྱེད་ཀྱིས་ལེགས་གྲུབ་བྱུང་སོང་།'), 300);
+    function getTokenCoord(color, pos, index) {
+      if (pos === -1) {
+        if (color === 'red') return index === 0 ? [2, 11] : [3, 12];
+        if (color === 'green') return index === 0 ? [11, 2] : [12, 3];
+      }
+      return (color === 'red') ? redRoute[pos] : greenRoute[pos];
+    }
+
+    function renderBoard() {
+      ctx.clearRect(0, 0, 360, 360);
+
+      for (let r = 0; r < 15; r++) {
+        for (let c = 0; c < 15; c++) {
+          ctx.strokeStyle = '#bdc3c7';
+          ctx.strokeRect(c * tileSize, r * tileSize, tileSize, tileSize);
         }
-      } else {
-        canClick = false;
-        setTimeout(() => {
-          card1.classList.remove('flipped');
-          card2.classList.remove('flipped');
-          card1.innerHTML = '';
-          card2.innerHTML = '';
-          flippedCards = [];
-          canClick = true;
-        }, 700);
+      }
+
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(0, 9 * tileSize, 6 * tileSize, 6 * tileSize);
+      ctx.fillStyle = '#2ecc71';
+      ctx.fillRect(9 * tileSize, 0, 6 * tileSize, 6 * tileSize);
+
+      ctx.fillStyle = '#f39c12';
+      ctx.fillRect(6 * tileSize, 6 * tileSize, 3 * tileSize, 3 * tileSize);
+
+      if (currentGameState && currentGameState.tokens) {
+        drawPlayerTokens('red', currentGameState.tokens.red, '#c0392b');
+        drawPlayerTokens('green', currentGameState.tokens.green, '#27ae60');
       }
     }
 
-    startGame();
+    function drawPlayerTokens(color, tokens, fillHex) {
+      tokens.forEach((pos, idx) => {
+        const coord = getTokenCoord(color, pos, idx);
+        if (coord) {
+          ctx.beginPath();
+          ctx.arc((coord[0] + 0.5) * tileSize, (coord[1] + 0.5) * tileSize, tileSize * 0.38, 0, Math.PI * 2);
+          ctx.fillStyle = fillHex;
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#ffffff';
+          ctx.stroke();
+        }
+      });
+    }
+
+    function updateControls() {
+      const diceBtn = document.getElementById('dice-btn');
+      const statusBar = document.getElementById('status-bar');
+      const turnInfo = document.getElementById('turn-info');
+
+      diceBtn.innerText = currentGameState.dice;
+
+      if (currentGameState.winner) {
+        statusBar.innerText = `🏆 Player ${currentGameState.winner.toUpperCase()} Won!`;
+        return;
+      }
+
+      if (currentGameState.turn === playerColor) {
+        statusBar.innerText = currentGameState.hasRolled ? "Tap your token to move!" : "Your turn! Roll the dice.";
+        statusBar.style.color = '#2ecc71';
+      } else {
+        statusBar.innerText = `Waiting for opponent (${currentGameState.turn.toUpperCase()})...`;
+        statusBar.style.color = '#e74c3c';
+      }
+
+      turnInfo.innerText = `Current Turn: ${currentGameState.turn.toUpperCase()}`;
+    }
+
+    renderBoard();
   </script>
 </body>
 </html>
