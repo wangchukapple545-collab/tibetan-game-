@@ -1,0 +1,172 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tibetan Heritage Match</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: #2b0b0e;
+      color: #f5e6c8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      text-align: center;
+      user-select: none;
+    }
+    h1 {
+      color: #e5a93b;
+      margin-bottom: 5px;
+    }
+    p {
+      margin-top: 0;
+      font-size: 16px;
+      color: #d1b89d;
+    }
+    #stats {
+      margin-bottom: 15px;
+      font-weight: bold;
+      color: #e5a93b;
+    }
+    #game-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      max-width: 380px;
+      margin: 0 auto;
+    }
+    .card {
+      aspect-ratio: 1;
+      background-color: #5c181a;
+      border: 2px solid #e5a93b;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 600;
+      padding: 4px;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      color: #2b0b0e;
+    }
+    .card.flipped {
+      background-color: #f5e6c8;
+    }
+    .card.matched {
+      background-color: #2e5939;
+      border-color: #68b87a;
+      color: #ffffff;
+      cursor: default;
+    }
+    #reset-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #e5a93b;
+      border: none;
+      border-radius: 5px;
+      color: #2b0b0e;
+      font-weight: bold;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>བཀྲ་ཤིས་བདེ་ལེགས།</h1>
+  <p>མཐུན་སྒྲིལ་རྩེད་མོ།</p>
+  <div id="stats">ཐེངས་གྲངས།: <span id="move-count">0</span></div>
+
+  <div id="game-grid"></div>
+
+  <button id="reset-btn" onclick="startGame()">བསྐྱར་དུ་རྩེད།</button>
+
+  <script>
+    // 8 Tibetan words only
+    const words = [
+      'གཡག',
+      'བོད་ཇ',
+      'ཕྲེང་བ',
+      'ལོ་གསར',
+      'ཕྱུ་པ',
+      'སྒྲ་སྙན',
+      'ཁ་བཏགས',
+      'རྩམ་པ'
+    ];
+
+    let deck = [...words, ...words];
+    let flippedCards = [];
+    let matchedPairs = 0;
+    let moves = 0;
+    let canClick = true;
+
+    function shuffle(array) {
+      return array.sort(() => Math.random() - 0.5);
+    }
+
+    function startGame() {
+      const grid = document.getElementById('game-grid');
+      grid.innerHTML = '';
+      deck = shuffle([...words, ...words]);
+      flippedCards = [];
+      matchedPairs = 0;
+      moves = 0;
+      canClick = true;
+      document.getElementById('move-count').innerText = moves;
+
+      deck.forEach((term) => {
+        const card = document.createElement('div');
+        card.classList.add('card');
+        card.dataset.term = term;
+        card.innerHTML = '';
+        card.addEventListener('click', handleCardClick);
+        grid.appendChild(card);
+      });
+    }
+
+    function handleCardClick(e) {
+      const card = e.currentTarget;
+      if (!canClick || card.classList.contains('flipped') || card.classList.contains('matched')) {
+        return;
+      }
+
+      card.classList.add('flipped');
+      card.innerHTML = card.dataset.term;
+      flippedCards.push(card);
+
+      if (flippedCards.length === 2) {
+        moves++;
+        document.getElementById('move-count').innerText = moves;
+        checkMatch();
+      }
+    }
+
+    function checkMatch() {
+      const [card1, card2] = flippedCards;
+      if (card1.dataset.term === card2.dataset.term) {
+        card1.classList.add('matched');
+        card2.classList.add('matched');
+        flippedCards = [];
+        matchedPairs++;
+        if (matchedPairs === words.length) {
+          setTimeout(() => alert('བཀྲ་ཤིས་བདེ་ལེགས། ཁྱེད་ཀྱིས་ལེགས་གྲུབ་བྱུང་སོང་།'), 300);
+        }
+      } else {
+        canClick = false;
+        setTimeout(() => {
+          card1.classList.remove('flipped');
+          card2.classList.remove('flipped');
+          card1.innerHTML = '';
+          card2.innerHTML = '';
+          flippedCards = [];
+          canClick = true;
+        }, 700);
+      }
+    }
+
+    startGame();
+  </script>
+</body>
+</html>
